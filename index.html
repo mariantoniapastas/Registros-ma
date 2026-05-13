@@ -1,0 +1,619 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Balances – Mariantonia</title>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/@tabler/icons-webfont@2.44.0/tabler-icons.min.css" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<style>
+/* ── Reset & tokens ─────────────────────────────────────── */
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#f4f3ef;--surface:#ffffff;--border:rgba(0,0,0,.09);
+  --text:#1a1a18;--muted:#6b6b67;--radius:10px;
+  --blue:#185FA5;--green:#0F6E56;--red:#993C1D;--amber:#854F0B;
+  font-family:'Inter',system-ui,sans-serif;font-size:14px;
+}
+@media(prefers-color-scheme:dark){
+  :root{--bg:#17171a;--surface:#222226;--border:rgba(255,255,255,.09);--text:#efefea;--muted:#9a9a96}
+}
+body{background:var(--bg);color:var(--text);min-height:100vh}
+
+/* ── Topbar ─────────────────────────────────────────────── */
+.topbar{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  padding:0 1.5rem;height:54px;display:flex;align-items:center;gap:12px;
+  position:sticky;top:0;z-index:20;
+}
+.topbar h1{font-size:15px;font-weight:700}
+.topbar small{font-size:12px;color:var(--muted)}
+#spinner{margin-left:auto;display:none}
+#spinner.on{display:block;animation:spin 1s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
+
+/* ── Nav ────────────────────────────────────────────────── */
+.nav{
+  background:var(--surface);border-bottom:1px solid var(--border);
+  display:flex;gap:2px;padding:0 1.5rem;overflow-x:auto;
+}
+.nav button{
+  background:none;border:none;border-bottom:2px solid transparent;
+  padding:12px 16px;font-size:13px;color:var(--muted);cursor:pointer;
+  white-space:nowrap;transition:color .15s;
+}
+.nav button:hover{color:var(--text)}
+.nav button.active{color:var(--blue);border-bottom-color:var(--blue);font-weight:600}
+
+/* ── Page / layout ──────────────────────────────────────── */
+.page{padding:1.5rem;max-width:1100px;display:none}
+.page.active{display:block}
+
+/* ── Cards ──────────────────────────────────────────────── */
+.card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:1rem 1.25rem}
+
+/* ── Metric row ─────────────────────────────────────────── */
+.metric-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:1.25rem}
+.metric{background:var(--bg);border-radius:var(--radius);padding:12px 14px}
+.metric .lbl{font-size:12px;color:var(--muted);margin-bottom:4px}
+.metric .val{font-size:20px;font-weight:700}
+.pos{color:var(--green)} .neg{color:var(--red)} .amb{color:var(--amber)}
+
+/* ── Charts ─────────────────────────────────────────────── */
+.charts-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:1rem;margin-bottom:1.25rem}
+.chart-title{font-size:13px;font-weight:700;margin-bottom:10px}
+.legend{display:flex;flex-wrap:wrap;gap:10px;margin-bottom:8px;font-size:11px;color:var(--muted)}
+.legend span{display:flex;align-items:center;gap:4px}
+.legend b{width:10px;height:10px;border-radius:2px;flex-shrink:0;display:inline-block}
+
+/* ── Filters ────────────────────────────────────────────── */
+.filters{display:flex;flex-wrap:wrap;gap:10px;align-items:center;margin-bottom:1.25rem}
+.filters label{font-size:12px;color:var(--muted)}
+.filters select,.filters input{
+  font-size:13px;padding:7px 10px;border-radius:8px;
+  border:1px solid var(--border);background:var(--surface);color:var(--text)
+}
+
+/* ── Form ───────────────────────────────────────────────── */
+.section-title{font-size:15px;font-weight:700;margin:1.5rem 0 .75rem}
+.form-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:10px}
+.field{display:flex;flex-direction:column;gap:4px}
+.field label{font-size:12px;color:var(--muted)}
+.field input,.field select{
+  font-size:13px;padding:8px 10px;border-radius:8px;
+  border:1px solid var(--border);background:var(--bg);color:var(--text)
+}
+.btn-pri{
+  background:var(--blue);color:#fff;border:none;border-radius:8px;
+  padding:9px 22px;font-size:13px;font-weight:700;cursor:pointer;margin-top:12px
+}
+.btn-pri:hover{opacity:.9} .btn-pri:disabled{opacity:.45;cursor:not-allowed}
+.btn-del{background:none;border:none;color:var(--muted);cursor:pointer;font-size:19px;padding:0 6px;line-height:1}
+.btn-del:hover{color:var(--red)}
+
+/* ── Table ──────────────────────────────────────────────── */
+table{width:100%;border-collapse:collapse;font-size:13px}
+th{text-align:left;padding:8px 10px;font-size:11px;font-weight:700;color:var(--muted);
+   border-bottom:1px solid var(--border);text-transform:uppercase;letter-spacing:.04em}
+td{padding:9px 10px;border-bottom:1px solid var(--border)}
+tr:last-child td{border-bottom:none}
+tr:hover td{background:var(--bg)}
+
+.badge{display:inline-block;padding:2px 9px;border-radius:99px;font-size:11px;font-weight:700}
+.b-ing{background:#E1F5EE;color:#085041}
+.b-egr{background:#FAECE7;color:#712B13}
+.b-imp{background:#FAEEDA;color:#633806}
+
+/* ── Annual ─────────────────────────────────────────────── */
+.annual-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(210px,1fr));gap:1rem;margin-bottom:1.25rem}
+.arow{display:flex;justify-content:space-between;font-size:12px;padding:4px 0;border-bottom:1px solid var(--border)}
+.arow:last-child{border:none;font-weight:700;font-size:13px;padding-top:8px}
+
+/* ── Toast ──────────────────────────────────────────────── */
+#toast{
+  position:fixed;bottom:20px;right:20px;padding:10px 18px;
+  border-radius:8px;font-size:13px;font-weight:600;z-index:999;
+  display:none;animation:fadeup .2s
+}
+#toast.ok{background:#0F6E56;color:#fff}
+#toast.err{background:#993C1D;color:#fff}
+@keyframes fadeup{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.empty{text-align:center;padding:2.5rem;color:var(--muted);font-size:13px}
+</style>
+</head>
+<body>
+
+<div class="topbar">
+  <h1>Mariantonia – Balances</h1>
+  <small>Ingresos · Egresos · Impuestos · Tráfico</small>
+  <span id="spinner">⟳</span>
+</div>
+
+<nav class="nav">
+  <button class="active" onclick="switchTab('dashboard')"><i class="ti ti-layout-dashboard"></i> Dashboard</button>
+  <button onclick="switchTab('carga')"><i class="ti ti-plus"></i> Cargar datos</button>
+  <button onclick="switchTab('anual')"><i class="ti ti-calendar"></i> Resumen anual</button>
+  <button onclick="switchTab('personas')"><i class="ti ti-users"></i> Tráfico</button>
+</nav>
+
+<!-- ── DASHBOARD ── -->
+<div id="page-dashboard" class="page active">
+  <div class="filters">
+    <label>Sucursal</label>
+    <select id="f-suc" onchange="renderDashboard()">
+      <option value="all">Todas</option>
+      <option>QUILMES</option><option>NUEVO QUILMES</option>
+      <option>FABRICA</option>
+    </select>
+    <label>Año</label>
+    <select id="f-year" onchange="renderDashboard()"></select>
+    <label>Mes</label>
+    <select id="f-month" onchange="renderDashboard()">
+      <option value="all">Todos</option>
+      <option value="1">Enero</option><option value="2">Febrero</option>
+      <option value="3">Marzo</option><option value="4">Abril</option>
+      <option value="5">Mayo</option><option value="6">Junio</option>
+      <option value="7">Julio</option><option value="8">Agosto</option>
+      <option value="9">Septiembre</option><option value="10">Octubre</option>
+      <option value="11">Noviembre</option><option value="12">Diciembre</option>
+    </select>
+  </div>
+  <div class="metric-grid" id="metrics"></div>
+  <div class="charts-grid">
+    <div class="card" style="grid-column:1/-1">
+      <div class="chart-title">Ingresos vs egresos por mes</div>
+      <div class="legend"><span><b style="background:#9FE1CB"></b>Ingresos</span><span><b style="background:#F5C4B3"></b>Egresos + Impuestos</span></div>
+      <div style="position:relative;height:220px"><canvas id="c-main"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Resultado neto por mes</div>
+      <div style="position:relative;height:200px"><canvas id="c-neto"></canvas></div>
+    </div>
+    <div class="card">
+      <div class="chart-title">Distribución de egresos</div>
+      <div class="legend" id="leg-pie"></div>
+      <div style="position:relative;height:200px"><canvas id="c-pie"></canvas></div>
+    </div>
+  </div>
+</div>
+
+<!-- ── CARGA ── -->
+<div id="page-carga" class="page">
+  <div class="section-title">Nuevo movimiento</div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="form-grid">
+      <div class="field"><label>Tipo</label>
+        <select id="c-tipo">
+          <option value="ingreso">Ingreso</option>
+          <option value="egreso">Egreso</option>
+          <option value="impuesto">Impuesto</option>
+        </select>
+      </div>
+      <div class="field"><label>Sucursal</label>
+        <select id="c-suc">
+          <option>QUILMES</option><option>NUEVO QUILMES</option>
+          <option>FABRICA</option>
+        </select>
+      </div>
+      <div class="field"><label>Año</label>
+        <input type="number" id="c-year" value="2025" min="2020" max="2099" />
+      </div>
+      <div class="field"><label>Mes</label>
+        <select id="c-month">
+          <option value="1">Enero</option><option value="2">Febrero</option>
+          <option value="3">Marzo</option><option value="4">Abril</option>
+          <option value="5">Mayo</option><option value="6">Junio</option>
+          <option value="7">Julio</option><option value="8">Agosto</option>
+          <option value="9">Septiembre</option><option value="10">Octubre</option>
+          <option value="11">Noviembre</option><option value="12">Diciembre</option>
+        </select>
+      </div>
+      <div class="field"><label>Categoría</label>
+        <input type="text" id="c-cat" placeholder="Ventas mostrador, Alquiler..." />
+      </div>
+      <div class="field"><label>Importe ($)</label>
+        <input type="number" id="c-monto" placeholder="0.00" step="0.01" />
+      </div>
+      <div class="field" style="grid-column:1/-1"><label>Descripción (opcional)</label>
+        <input type="text" id="c-desc" placeholder="Detalle..." />
+      </div>
+    </div>
+    <button class="btn-pri" id="btn-add" onclick="addMovimiento()">Agregar movimiento</button>
+  </div>
+  <div class="section-title">Últimos movimientos</div>
+  <div class="card" id="tabla-movs"></div>
+</div>
+
+<!-- ── ANUAL ── -->
+<div id="page-anual" class="page">
+  <div class="filters">
+    <label>Año</label>
+    <select id="an-year" onchange="renderAnual()"></select>
+  </div>
+  <div id="annual-cards" class="annual-grid"></div>
+  <div class="card">
+    <div class="chart-title">Resultado neto mensual por sucursal</div>
+    <div class="legend" id="leg-anual"></div>
+    <div style="position:relative;height:250px"><canvas id="c-anual"></canvas></div>
+  </div>
+</div>
+
+<!-- ── PERSONAS ── -->
+<div id="page-personas" class="page">
+  <div class="section-title">Registrar personas por día</div>
+  <div class="card" style="margin-bottom:1rem">
+    <div class="form-grid">
+      <div class="field"><label>Sucursal</label>
+        <select id="p-suc">
+          <option>QUILMES</option><option>NUEVO QUILMES</option>
+          <option>FABRICA</option>
+        </select>
+      </div>
+      <div class="field"><label>Fecha</label>
+        <input type="date" id="p-date" />
+      </div>
+      <div class="field"><label>Personas</label>
+        <input type="number" id="p-count" min="0" placeholder="0" />
+      </div>
+    </div>
+    <button class="btn-pri" id="btn-per" onclick="addPersonas()">Registrar</button>
+  </div>
+  <div class="card">
+    <div class="chart-title">Promedio diario de personas por mes</div>
+    <div class="legend" id="leg-people"></div>
+    <div style="position:relative;height:220px"><canvas id="c-people"></canvas></div>
+  </div>
+  <div id="tabla-personas" style="margin-top:1rem"></div>
+</div>
+
+<div id="toast"></div>
+
+<script>
+// ── CONFIG ───────────────────────────────────────────────────────────────────
+const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbz81-aw5vhmlQ-AJy3nln-bNOG0MOJ8MZTG1tF0G6fKC6R8ZRgp36D7Un66OyDOpxo9yw/exec';
+
+// ── Constantes ───────────────────────────────────────────────────────────────
+const MONTHS      = ['Ene','Feb','Mar','Abr','May','Jun','Jul','Ago','Sep','Oct','Nov','Dic'];
+const MONTH_NAMES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+const SUCURSALES  = ['QUILMES','NUEVO QUILMES','FABRICA'];
+const SUC_COLORS  = { 'QUILMES':'#378ADD', 'NUEVO QUILMES':'#1D9E75', 'FABRICA':'#D4537E' };
+const SUC_LIGHT   = { 'QUILMES':'#B5D4F4', 'NUEVO QUILMES':'#9FE1CB', 'FABRICA':'#F4C0D1' };
+
+// ── Estado ───────────────────────────────────────────────────────────────────
+let entries = [];
+let people  = [];
+let charts  = {};
+
+// ── API ──────────────────────────────────────────────────────────────────────
+async function api(params) {
+  const url = SCRIPT_URL + '?' + new URLSearchParams(params);
+  const r = await fetch(url);
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+async function apiPost(body) {
+  const r = await fetch(SCRIPT_URL, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  const data = await r.json();
+  if (data.error) throw new Error(data.error);
+  return data;
+}
+
+// ── Init ─────────────────────────────────────────────────────────────────────
+async function loadAll() {
+  spin(true);
+  try {
+    [entries, people] = await Promise.all([
+      api({ action: 'getMovimientos' }),
+      api({ action: 'getPersonas' }),
+    ]);
+    populateYears();
+    renderDashboard();
+    renderTabla();
+  } catch(e) {
+    toast('Error cargando datos: ' + e.message, 'err');
+  }
+  spin(false);
+}
+
+window.addEventListener('DOMContentLoaded', () => {
+  const hoy = new Date();
+  document.getElementById('p-date').valueAsDate = hoy;
+  document.getElementById('c-year').value = hoy.getFullYear();
+  document.getElementById('c-month').value = hoy.getMonth() + 1;
+  loadAll();
+});
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+function fmt(n) { return '$' + Math.round(n).toLocaleString('es-AR'); }
+
+function calcTotals(arr) {
+  let ing=0, egr=0, imp=0;
+  arr.forEach(e => {
+    if (e.tipo==='ingreso')   ing += e.monto;
+    else if (e.tipo==='egreso')   egr += e.monto;
+    else if (e.tipo==='impuesto') imp += e.monto;
+  });
+  return { ing, egr, imp, neto: ing - egr - imp };
+}
+
+function filterEntries(suc, year, month) {
+  return entries.filter(e => {
+    if (suc && suc!=='all' && e.suc!==suc) return false;
+    if (year && e.year!==Number(year))     return false;
+    if (month && month!=='all' && e.month!==Number(month)) return false;
+    return true;
+  });
+}
+
+function getYears() {
+  const cur = new Date().getFullYear();
+  const yrs = new Set([cur, ...entries.map(e=>e.year), ...people.map(p=>p.year)]);
+  return [...yrs].sort((a,b)=>b-a);
+}
+
+function populateYears() {
+  const yrs = getYears();
+  ['f-year','an-year'].forEach(id => {
+    const el = document.getElementById(id);
+    const cur = el.value;
+    el.innerHTML = yrs.map(y=>`<option value="${y}">${y}</option>`).join('');
+    if (cur && yrs.includes(+cur)) el.value = cur;
+  });
+}
+
+function spin(on) {
+  document.getElementById('spinner').className = on ? 'on' : '';
+}
+
+let toastTimer;
+function toast(msg, type='ok') {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = type;
+  el.style.display = 'block';
+  clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => el.style.display='none', 3000);
+}
+
+function destroyChart(id) {
+  if (charts[id]) { charts[id].destroy(); delete charts[id]; }
+}
+
+// ── Nav ──────────────────────────────────────────────────────────────────────
+function switchTab(id) {
+  document.querySelectorAll('.nav button').forEach((b,i) =>
+    b.classList.toggle('active', ['dashboard','carga','anual','personas'][i]===id)
+  );
+  document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
+  document.getElementById('page-'+id).classList.add('active');
+  if (id==='anual')    { populateYears(); renderAnual(); }
+  if (id==='personas') renderPeople();
+  if (id==='carga')    renderTabla();
+}
+
+// ── Dashboard ────────────────────────────────────────────────────────────────
+function renderDashboard() {
+  populateYears();
+  const suc   = document.getElementById('f-suc').value;
+  const year  = document.getElementById('f-year').value;
+  const month = document.getElementById('f-month').value;
+  const data  = filterEntries(suc, year, month);
+  const t     = calcTotals(data);
+
+  document.getElementById('metrics').innerHTML = `
+    <div class="metric"><div class="lbl">Ingresos</div><div class="val pos">${fmt(t.ing)}</div></div>
+    <div class="metric"><div class="lbl">Egresos</div><div class="val neg">${fmt(t.egr)}</div></div>
+    <div class="metric"><div class="lbl">Impuestos</div><div class="val amb">${fmt(t.imp)}</div></div>
+    <div class="metric"><div class="lbl">Resultado neto</div>
+      <div class="val ${t.neto>=0?'pos':'neg'}">${fmt(t.neto)}</div></div>
+  `;
+
+  const byMonth = MONTHS.map((_,i) => calcTotals(filterEntries(suc, year, String(i+1))));
+
+  destroyChart('main');
+  charts['main'] = new Chart(document.getElementById('c-main'), {
+    type:'bar',
+    data:{ labels:MONTHS, datasets:[
+      { label:'Ingresos', data:byMonth.map(d=>d.ing), backgroundColor:'#9FE1CB', borderRadius:3 },
+      { label:'Egresos+Imp', data:byMonth.map(d=>d.egr+d.imp), backgroundColor:'#F5C4B3', borderRadius:3 },
+    ]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false}}, y:{ticks:{callback:v=>'$'+Math.round(v/1000)+'k'}} } }
+  });
+
+  destroyChart('neto');
+  charts['neto'] = new Chart(document.getElementById('c-neto'), {
+    type:'bar',
+    data:{ labels:MONTHS, datasets:[{
+      label:'Neto', data:byMonth.map(d=>d.neto),
+      backgroundColor:byMonth.map(d=>d.neto>=0?'#5DCAA5':'#F0997B'), borderRadius:3
+    }]},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false}}, y:{ticks:{callback:v=>'$'+Math.round(v/1000)+'k'}} } }
+  });
+
+  const cats = {};
+  data.filter(e=>e.tipo!=='ingreso').forEach(e => {
+    const k = e.cat || 'Otros';
+    cats[k] = (cats[k]||0) + e.monto;
+  });
+  const pieLabs   = Object.keys(cats).slice(0,8);
+  const pieVals   = pieLabs.map(k=>cats[k]);
+  const pieColors = ['#378ADD','#1D9E75','#D85A30','#D4537E','#BA7517','#639922','#7F77DD','#888780'];
+  document.getElementById('leg-pie').innerHTML = pieLabs.map((l,i)=>
+    `<span><b style="background:${pieColors[i]}"></b>${l}</span>`).join('');
+  destroyChart('pie');
+  if (pieLabs.length) {
+    charts['pie'] = new Chart(document.getElementById('c-pie'), {
+      type:'doughnut',
+      data:{ labels:pieLabs, datasets:[{ data:pieVals, backgroundColor:pieColors, borderWidth:0 }] },
+      options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}} }
+    });
+  }
+}
+
+// ── Carga ────────────────────────────────────────────────────────────────────
+async function addMovimiento() {
+  const tipo  = document.getElementById('c-tipo').value;
+  const suc   = document.getElementById('c-suc').value;
+  const year  = +document.getElementById('c-year').value;
+  const month = +document.getElementById('c-month').value;
+  const cat   = document.getElementById('c-cat').value.trim();
+  const monto = +document.getElementById('c-monto').value;
+  const desc  = document.getElementById('c-desc').value.trim();
+  if (!cat || !monto) { toast('Completá categoría e importe', 'err'); return; }
+
+  const btn = document.getElementById('btn-add');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  spin(true);
+  try {
+    const res = await apiPost({ action:'addMovimiento', tipo, suc, year, month, cat, monto, desc });
+    entries.unshift({ id: res.id, tipo, suc, year, month, cat, monto, desc });
+    document.getElementById('c-cat').value = '';
+    document.getElementById('c-monto').value = '';
+    document.getElementById('c-desc').value = '';
+    renderTabla();
+    toast('Movimiento guardado ✓');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  btn.disabled = false; btn.textContent = 'Agregar movimiento';
+  spin(false);
+}
+
+async function delMovimiento(id, suc) {
+  if (!confirm('¿Eliminar este movimiento?')) return;
+  spin(true);
+  try {
+    await apiPost({ action:'delMovimiento', id, suc });
+    entries = entries.filter(e => e.id !== id);
+    renderTabla();
+    toast('Eliminado');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  spin(false);
+}
+
+function renderTabla() {
+  const wrap = document.getElementById('tabla-movs');
+  if (!entries.length) { wrap.innerHTML = '<div class="empty">No hay movimientos cargados.</div>'; return; }
+  wrap.innerHTML = `<table>
+    <thead><tr><th>Tipo</th><th>Sucursal</th><th>Período</th><th>Categoría</th><th>Importe</th><th></th></tr></thead>
+    <tbody>${entries.slice(0,50).map(e=>`<tr>
+      <td><span class="badge b-${e.tipo==='ingreso'?'ing':e.tipo==='egreso'?'egr':'imp'}">${e.tipo}</span></td>
+      <td>${e.suc}</td>
+      <td>${MONTH_NAMES[e.month-1]} ${e.year}</td>
+      <td>${e.cat}</td>
+      <td style="font-weight:700">${fmt(e.monto)}</td>
+      <td><button class="btn-del" onclick="delMovimiento('${e.id}','${e.suc}')" title="Eliminar">×</button></td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ── Anual ────────────────────────────────────────────────────────────────────
+function renderAnual() {
+  const year = +document.getElementById('an-year').value;
+  document.getElementById('annual-cards').innerHTML = SUCURSALES.map(suc => {
+    const t = calcTotals(entries.filter(e=>e.suc===suc&&e.year===year));
+    const c = SUC_COLORS[suc];
+    return `<div class="card">
+      <h3 style="font-size:14px;font-weight:700;border-left:3px solid ${c};padding-left:8px;margin-bottom:12px">${suc}</h3>
+      <div class="arow"><span style="color:var(--muted)">Ingresos</span><span class="pos">${fmt(t.ing)}</span></div>
+      <div class="arow"><span style="color:var(--muted)">Egresos</span><span class="neg">${fmt(t.egr)}</span></div>
+      <div class="arow"><span style="color:var(--muted)">Impuestos</span><span class="amb">${fmt(t.imp)}</span></div>
+      <div class="arow"><span>Resultado neto</span>
+        <span style="color:${t.neto>=0?'var(--green)':'var(--red)'}">${fmt(t.neto)}</span></div>
+    </div>`;
+  }).join('');
+
+  const barData = SUCURSALES.map(suc =>
+    MONTHS.map((_,i) => calcTotals(entries.filter(e=>e.suc===suc&&e.year===year&&e.month===i+1)).neto)
+  );
+  document.getElementById('leg-anual').innerHTML = SUCURSALES.map(s=>
+    `<span><b style="background:${SUC_COLORS[s]}"></b>${s}</span>`).join('');
+  destroyChart('anual');
+  charts['anual'] = new Chart(document.getElementById('c-anual'), {
+    type:'bar',
+    data:{ labels:MONTHS, datasets:SUCURSALES.map((suc,i)=>({
+      label:suc, data:barData[i],
+      backgroundColor:SUC_LIGHT[suc], borderColor:SUC_COLORS[suc], borderWidth:1, borderRadius:2
+    }))},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false}}, y:{ticks:{callback:v=>'$'+Math.round(v/1000)+'k'}} } }
+  });
+}
+
+// ── Personas ─────────────────────────────────────────────────────────────────
+async function addPersonas() {
+  const suc   = document.getElementById('p-suc').value;
+  const date  = document.getElementById('p-date').value;
+  const count = +document.getElementById('p-count').value;
+  if (!date || !count) { toast('Completá todos los campos', 'err'); return; }
+  const [y,m,d] = date.split('-').map(Number);
+
+  const btn = document.getElementById('btn-per');
+  btn.disabled = true; btn.textContent = 'Guardando...';
+  spin(true);
+  try {
+    await apiPost({ action:'setPersonas', suc, year:y, month:m, day:d, count });
+    // Actualizar local
+    const idx = people.findIndex(p=>p.suc===suc&&p.year===y&&p.month===m&&p.day===d);
+    if (idx>=0) people[idx].count = count;
+    else people.push({ suc, year:y, month:m, day:d, count });
+    document.getElementById('p-count').value = '';
+    renderPeople();
+    toast('Tráfico guardado ✓');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+  btn.disabled = false; btn.textContent = 'Registrar';
+  spin(false);
+}
+
+function renderPeople() {
+  const year = new Date().getFullYear();
+  const avgData = SUCURSALES.map(suc =>
+    MONTHS.map((_,mi) => {
+      const days = people.filter(p=>p.suc===suc&&p.year===year&&p.month===mi+1);
+      if (!days.length) return null;
+      return Math.round(days.reduce((a,b)=>a+b.count,0) / days.length);
+    })
+  );
+  document.getElementById('leg-people').innerHTML = SUCURSALES.map(s=>
+    `<span><b style="background:${SUC_COLORS[s]}"></b>${s}</span>`).join('');
+  destroyChart('people');
+  charts['people'] = new Chart(document.getElementById('c-people'), {
+    type:'line',
+    data:{ labels:MONTHS, datasets:SUCURSALES.map((suc,i)=>({
+      label:suc, data:avgData[i],
+      borderColor:SUC_COLORS[suc], backgroundColor:SUC_LIGHT[suc]+'55',
+      tension:.3, spanGaps:true, pointRadius:4, borderWidth:2
+    }))},
+    options:{ responsive:true, maintainAspectRatio:false, plugins:{legend:{display:false}},
+      scales:{ x:{grid:{display:false}}, y:{beginAtZero:true} } }
+  });
+
+  const byMonth = {};
+  people.filter(p=>p.year===year).forEach(p => {
+    const k = `${p.suc}-${p.month}`;
+    if (!byMonth[k]) byMonth[k] = { suc:p.suc, month:p.month, dias:[], total:0 };
+    byMonth[k].dias.push(p.day); byMonth[k].total += p.count;
+  });
+  const rows = Object.values(byMonth).sort((a,b)=>a.month-b.month);
+  const wrap = document.getElementById('tabla-personas');
+  if (!rows.length) { wrap.innerHTML=''; return; }
+  wrap.innerHTML = `<div class="card"><table>
+    <thead><tr><th>Sucursal</th><th>Mes</th><th>Días reg.</th><th>Prom. diario</th><th>Total mes</th></tr></thead>
+    <tbody>${rows.map(r=>`<tr>
+      <td style="font-weight:700">${r.suc}</td>
+      <td>${MONTH_NAMES[r.month-1]}</td>
+      <td>${r.dias.length}</td>
+      <td>${Math.round(r.total/r.dias.length)}</td>
+      <td>${r.total.toLocaleString('es-AR')}</td>
+    </tr>`).join('')}</tbody>
+  </table></div>`;
+}
+</script>
+</body>
+</html>
